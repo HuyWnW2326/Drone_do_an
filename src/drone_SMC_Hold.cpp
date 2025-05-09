@@ -79,10 +79,10 @@ public:
             if((Rc_CH6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
-                x_d = x_current;
-                y_d = y_current;
-                z_d = z_current;
-                // xyz_setpoint(3.0, 5.0, -5.0);
+                // x_d = x_current;
+                // y_d = y_current;
+                // z_d = z_current;
+                xyz_setpoint(-3.0, 0.0, 0.0);
                 Yaw_hover =  Yaw_current;
                 std::cout << "Offboard_mode  =" << std::endl;
             }
@@ -131,7 +131,7 @@ private:
     float g = 9.8;
     float m = 1.545;
     float b = 4.6 * pow(10,-6);
-    float omg_max = 1190;
+    float omg_max = 1210;
     const double f_max = 4 * b * pow(omg_max,2); 
 
     float lon_current = 0.0;
@@ -247,27 +247,27 @@ void OffboardControl::RPY_to_Quaternion(float Roll, float Pitch, float Yaw)
 
 void OffboardControl::Altitude_controller(float DesiredValueZ)
 {
-    float k = 4.0;
-    float lamda = 3.0;
-    static float t_last = 0.0;
+    float k_z = 4.0;
+    float lamda_z = 2.0;
+    static float tz_last = 0.0;
     static float z_d_last = 0.0;
     static float vz_d_last = 0.0;
     float vz_d = 0.0;
     float az_d = 0.0;
     float err_dot = 0.0;
 
-    float delta_t = this->get_clock()->now().seconds() - t_last;
-    float err = DesiredValueZ - z_current;
+    float delta_tz = this->get_clock()->now().seconds() - tz_last;
+    float err_z = DesiredValueZ - z_current;
 
-    if(delta_t > 0)
+    if(delta_tz > 0)
     {
-        vz_d = (DesiredValueZ - z_d_last) / delta_t;
-        az_d = (vz_d - vz_d_last) / delta_t;
+        vz_d = (DesiredValueZ - z_d_last) / delta_tz;
+        az_d = (vz_d - vz_d_last) / delta_tz;
     }
     err_dot = vz_d - vz_current;
-    fz = (-m/(cos(Roll_current) * cos(Pitch_current))) * (az_d - g + lamda * err_dot + k * std::clamp(err_dot + lamda * err, -1.0f, 1.0f));
+    fz = (-m/(cos(Roll_current) * cos(Pitch_current))) * (az_d - g + lamda_z * err_dot + k_z * std::clamp(err_dot + lamda_z * err_z, -1.0f, 1.0f));
     
-    t_last = this->get_clock()->now().seconds();
+    tz_last = this->get_clock()->now().seconds();
     vz_d_last = vz_d;
     z_d_last = DesiredValueZ;
     float fz_out = -fz/f_max;
@@ -276,11 +276,12 @@ void OffboardControl::Altitude_controller(float DesiredValueZ)
 
 void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
 {
-    float k = 4.0;
-    float lamda = 2.0;
     float Yaw_d = Yaw_hover;
-    static float t_last = 0.0;
-    float delta_t = this->get_clock()->now().seconds() - t_last;
+
+    float k_x = 3.0;
+    float lamda_x = 2.0;
+    static float tx_last = 0.0;
+    float delta_tx = this->get_clock()->now().seconds() - tx_last;
 
     static float x_d_last = 0.0;
     static float vx_d_last = 0.0;
@@ -288,17 +289,21 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
     float ax_d = 0.0;
     float err_x_dot = 0.0;
     float err_x = DesiredValueX - x_current;
-    if(delta_t > 0)
+    if(delta_tx > 0)
     {
-        vx_d = (DesiredValueX - x_d_last) / delta_t;
-        ax_d = (vx_d - vx_d_last) / delta_t;
+        vx_d = (DesiredValueX - x_d_last) / delta_tx;
+        ax_d = (vx_d - vx_d_last) / delta_tx;
     }
     err_x_dot = vx_d - vx_current;
-    float ux1 = (-m/fz) * (ax_d + lamda * err_x_dot + k * std::clamp(err_x_dot + lamda * err_x, -1.0f, 1.0f));
-    t_last = this->get_clock()->now().seconds();
+    float ux1 = (-m/fz) * (ax_d + lamda_x * err_x_dot + k_x * std::clamp(err_x_dot + lamda_x * err_x, -1.0f, 1.0f));
+    tx_last = this->get_clock()->now().seconds();
     vx_d_last = vx_d;
     x_d_last = DesiredValueX;
 
+    float k_y = 3.0;
+    float lamda_y = 2.0;
+    static float ty_last = 0.0;
+    float delta_ty = this->get_clock()->now().seconds() - ty_last;
 
     static float y_d_last = 0.0;
     static float vy_d_last = 0.0;
@@ -306,13 +311,14 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
     float ay_d = 0.0;
     float err_y_dot = 0.0;
     float err_y = DesiredValueY - y_current;
-    if(delta_t > 0)
+    if(delta_ty > 0)
     {
-        vy_d = (DesiredValueY - y_d_last) / delta_t;
-        ay_d = (vy_d - vy_d_last) / delta_t;
+        vy_d = (DesiredValueY - y_d_last) / delta_ty;
+        ay_d = (vy_d - vy_d_last) / delta_ty;
     }
     err_y_dot = vy_d - vy_current;
-    float uy1 = (-m/fz) * (ay_d + lamda * err_y_dot + k * std::clamp(err_y_dot + lamda * err_y, -1.0f, 1.0f));
+    float uy1 = (-m/fz) * (ay_d + lamda_y * err_y_dot + k_y * std::clamp(err_y_dot + lamda_y * err_y, -1.0f, 1.0f));
+    ty_last = this->get_clock()->now().seconds();
     vy_d_last = vy_d;
     y_d_last = DesiredValueY;
 
