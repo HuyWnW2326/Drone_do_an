@@ -79,10 +79,10 @@ public:
             if((Rc_CH6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
-                // x_d = x_current;
-                // y_d = y_current;
-                // z_d = z_current;
-                xyz_setpoint(-3.0, 0.0, 0.0);
+                x_d = x_current;
+                y_d = y_current;
+                z_d = z_current;
+                // xyz_setpoint(-3.0, 0.0, 0.0);
                 Yaw_hover =  Yaw_current;
                 std::cout << "Offboard_mode  =" << std::endl;
             }

@@ -133,9 +133,9 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0;     
     float g = 9.8;
-    float m = 1.545;
+    float m = 1.820;
     float b = 4.6 * pow(10,-6);
-    float omg_max = 1210;
+    float omg_max = 1285;
     const double f_max = 4 * b * pow(omg_max,2); 
 
     float lon_current = 0.0;
@@ -169,7 +169,7 @@ private:
 	float y_center = 0.0;
 
     void publish_offboard_control_mode();
-    void publish_trajectory_setpoint();
+    void publish_trajectory_setpoint(float x, float y, float z);
     void publish_vehicle_command(uint16_t command, float param1 = 0.0, float param2 = 0.0);
     void publish_vehicle_attitude_setpoint(float thrust_z);
 };
@@ -199,11 +199,11 @@ void OffboardControl::publish_offboard_control_mode()
     offboard_control_mode_publisher_->publish(msg);
 }
 
-void OffboardControl::publish_trajectory_setpoint()
+void OffboardControl::publish_trajectory_setpoint(float x, float y, float z)
 {
     TrajectorySetpoint msg{};
-    msg.position = {0.0, 0.0, -1.5};
-    msg.yaw = 0.0; // [-PI:PI]
+    msg.position = {x, y, z};
+    msg.yaw = Yaw_hover;
     msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
     trajectory_setpoint_publisher_->publish(msg);
 }
@@ -254,7 +254,7 @@ void OffboardControl::RPY_to_Quaternion(float Roll, float Pitch, float Yaw)
 
 void OffboardControl::Altitude_controller(float DesiredValueZ)
 {
-    float k_z = 4.0;
+    float k_z = 3.0;
     float lamda_z = 2.0;
     static float tz_last = 0.0;
     static float z_d_last = 0.0;
@@ -285,8 +285,8 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
 {
     float Yaw_d = Yaw_hover;
 
-    float k_x = 3.0;
-    float lamda_x = 2.0;
+    float k_x = 2.0;
+    float lamda_x = 1.5;
     static float tx_last = 0.0;
     float delta_tx = this->get_clock()->now().seconds() - tx_last;
 
@@ -307,8 +307,8 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
     vx_d_last = vx_d;
     x_d_last = DesiredValueX;
 
-    float k_y = 3.0;
-    float lamda_y = 2.0;
+    float k_y = 2.5;
+    float lamda_y = 1.6;
     static float ty_last = 0.0;
     float delta_ty = this->get_clock()->now().seconds() - ty_last;
 
