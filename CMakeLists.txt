@@ -17,6 +17,11 @@ ament_target_dependencies(drone_SMC_Circle_node rclcpp px4_msgs std_msgs)
 add_executable(drone_SMC_Hold_node src/drone_SMC_Hold.cpp)
 ament_target_dependencies(drone_SMC_Hold_node rclcpp px4_msgs std_msgs)
 
+install(DIRECTORY 
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 install(TARGETS
   drone_PID_node
   drone_SMC_Circle_node
