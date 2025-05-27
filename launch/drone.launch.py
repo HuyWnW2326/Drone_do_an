@@ -10,8 +10,8 @@ def generate_launch_description():
         ),
         Node(
             package='drone_pkg',
-            executable='drone_SMC_Circle_node',
-            name='drone_SMC_Circle',
+            executable='SMC_Circle_node',
+            name='SMC_Circle',
             output='screen'
         )
     ])
