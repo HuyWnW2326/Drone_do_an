@@ -29,7 +29,8 @@ public:
         offboard_control_mode_publisher_ = this->create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
         vehicle_command_publisher_ = this->create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
         vehicle_attitude_setpoint_publisher_= this->create_publisher<VehicleAttitudeSetpoint>("/fmu/in/vehicle_attitude_setpoint", 10);
-        
+        UAV_publisher_= this->create_publisher<geometry_msgs::msg::Point>("/UAV_position", 10);
+
         rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
         auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 10), qos_profile);
         
@@ -68,78 +69,80 @@ public:
             Rc_CH6 = msg->values[5];
         });
 
-        point1_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point1", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[0] = msg->x;
-            lon_target[0] = msg->y;
-        });
+        // point1_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point1", qos,
+        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+        //     lat_target[0] = msg->x;
+        //     lon_target[0] = msg->y;
+        // });
 
-        point2_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point2", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[1] = msg->x;
-            lon_target[1] = msg->y;
-        });
+        // point2_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point2", qos,
+        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+        //     lat_target[1] = msg->x;
+        //     lon_target[1] = msg->y;
+        // });
 
-        point3_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point3", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[2] = msg->x;
-            lon_target[2] = msg->y;
-        });
+        // point3_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point3", qos,
+        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+        //     lat_target[2] = msg->x;
+        //     lon_target[2] = msg->y;
+        // });
+
+        
 
         auto timer_callback = [this]() -> void {
+            lat_target[0] = 10.850496;
+            lon_target[0] = 106.770971;
+
+            lat_target[1] = 10.850402;
+            lon_target[1] = 106.770954;
+
+            lat_target[2] = 10.850549;
+            lon_target[2] = 106.770933;
             if(timer_count >= 50)
             {
                 timer_count = 0;
-                // RCLCPP_INFO(this->get_logger(), "lat_target1 = %.7f", lat_target[0]);
-                // RCLCPP_INFO(this->get_logger(), "lon_target1 = %.7f", lon_target[0]);
-                // RCLCPP_INFO(this->get_logger(), "lat_target2 = %.7f", lat_target[1]);
-                // RCLCPP_INFO(this->get_logger(), "lon_target2 = %.7f", lon_target[1]);
-                // RCLCPP_INFO(this->get_logger(), "lat_target3 = %.7f", lat_target[2]);
-                // RCLCPP_INFO(this->get_logger(), "lon_target3 = %.7f", lon_target[2]);
-                RCLCPP_INFO(this->get_logger(), "x_d = %.3f", pos_d.x);
-                RCLCPP_INFO(this->get_logger(), "y_d = %.3f", pos_d.y);
-                RCLCPP_INFO(this->get_logger(), "z_d = %.3f", pos_d.z);
-                RCLCPP_INFO(this->get_logger(), "x_current = %.3f", pos_cur.x);
-                RCLCPP_INFO(this->get_logger(), "y_current = %.3f", pos_cur.y);
-                RCLCPP_INFO(this->get_logger(), "z_current = %.3f", pos_cur.z);
+                RCLCPP_INFO(this->get_logger(), "lat_target1 = %.6f", lat_target[0]);
+                RCLCPP_INFO(this->get_logger(), "lon_target1 = %.6f", lon_target[0]);
+                RCLCPP_INFO(this->get_logger(), "lat_target2 = %.6f", lat_target[1]);
+                RCLCPP_INFO(this->get_logger(), "lon_target2 = %.6f", lon_target[1]);
+                RCLCPP_INFO(this->get_logger(), "lat_target3 = %.6f", lat_target[2]);
+                RCLCPP_INFO(this->get_logger(), "lon_target3 = %.6f", lon_target[2]);
+                // RCLCPP_INFO(this->get_logger(), "x_d = %.3f", pos_d.x);
+                // RCLCPP_INFO(this->get_logger(), "y_d = %.3f", pos_d.y);
+                // RCLCPP_INFO(this->get_logger(), "z_d = %.3f", pos_d.z);
+                // RCLCPP_INFO(this->get_logger(), "x_current = %.3f", pos_cur.x);
+                // RCLCPP_INFO(this->get_logger(), "y_current = %.3f", pos_cur.y);
+                // RCLCPP_INFO(this->get_logger(), "z_current = %.3f", pos_cur.z);
                 std::cout << std::endl;
             }
             t_end = this->get_clock()->now().seconds();
-            if((Rc_CH6 > 1500)&&(state_offboard == 0))
+            if(Rc_CH6 > 1500)
             {
-                // if(state_offboard == 0)
-                // {
-                //     pos_global_2_local(lat_target[0], lon_target[0]);
-                //     pos_d.z = pos_cur.z;
-                //     Yaw_hover = Yaw_current;
-                //     t_start = this->get_clock()->now().seconds();
-                //     state_offboard = 1;
-                // }
-                // else if((t_end - t_start >= 15) && (state_offboard == 1))
-                // {
-                //     pos_global_2_local(lat_target[1], lon_target[1]);
-                //     t_start = this->get_clock()->now().seconds();
-                //     state_offboard = 2;
-                // }
-                // else if((t_end - t_start >= 10) && (state_offboard == 2))
-                // {
-                //     pos_global_2_local(lat_target[2], lon_target[2]);
-                //     state_offboard = 3;
-                // }
-                state_offboard = 1;
-                Yaw_d = Yaw_current;
-                xyz_setpoint(-15.0f, 3.0f, 0.0f);
-
+                if(state_offboard == 0)
+                {
+                    pos_global_2_local(lat_target[0], lon_target[0]);
+                    pos_d.z = pos_cur.z;
+                    Yaw_d = Yaw_current;
+                    t_start = this->get_clock()->now().seconds();
+                    state_offboard = 1;
+                }
+                else if((t_end - t_start >= 5) && (state_offboard == 1))
+                {
+                    pos_global_2_local(lat_target[1], lon_target[1]);
+                    t_start = this->get_clock()->now().seconds();
+                    state_offboard = 2;
+                }
+                else if((t_end - t_start >= 7) && (state_offboard == 2))
+                {
+                    pos_global_2_local(lat_target[2], lon_target[2]);
+                    state_offboard = 3;
+                }
             }
-            else if((Rc_CH6 < 1500) && (state_offboard == 1))
+            else 
                 state_offboard = 0;
-            // else    
-            //     state_offboard = 0;
             publish_offboard_control_mode();
             if((state_offboard) && (Rc_CH6 > 1500))
-            {
                 Controller_xyz(pos_d.x, pos_d.y, pos_d.z);
-            }
             timer_count ++;
         };
         timer_ = this->create_wall_timer(10ms, timer_callback);
@@ -151,6 +154,7 @@ private:
     rclcpp::Publisher<OffboardControlMode>::SharedPtr offboard_control_mode_publisher_;
     rclcpp::Publisher<VehicleCommand>::SharedPtr vehicle_command_publisher_;
     rclcpp::Publisher<VehicleAttitudeSetpoint>::SharedPtr vehicle_attitude_setpoint_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::Point>::SharedPtr UAV_publisher_;
 
     rclcpp::Subscription<VehicleLocalPosition>::SharedPtr vehicle_local_position_subscription_;
     rclcpp::Subscription<VehicleGlobalPosition>::SharedPtr vehicle_global_position_subscription_;
@@ -170,12 +174,12 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    // float m = 1.820f;
-    // float b = 4.6 * pow(10,-6);
-    // float omg_max = 1285.0f;
-    float m = 1.545;
+    float m = 1.820f;
     float b = 4.6 * pow(10,-6);
-    float omg_max = 1100;
+    float omg_max = 1285.0f;
+    // float m = 1.545;
+    // float b = 4.6 * pow(10,-6);
+    // float omg_max = 1100;
     const double f_max = 4 * b * pow(omg_max,2); 
 
     float lon_current = 0.0f;
@@ -221,7 +225,7 @@ void OffboardControl::pos_global_2_local(float lat_target, float lon_target)
     delta_lat = (lat_target - lat_current);   // Don vi do
     delta_lon = (lon_target - lon_current);   // Don vi do
     pos_d.x = pos_cur.x + delta_lat * 111320.0f;   // 1 do = 111320.0 m
-    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cos(phi); // 1 do kinh do = 111320.0 * cos(trung binh)
+    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cosf(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
 }
 
 void OffboardControl::publish_offboard_control_mode()
@@ -299,7 +303,7 @@ float OffboardControl::Altitude_controller(float DesiredZ)
 
 void OffboardControl::Controller_xyz(float DesiredX, float DesiredY, float DesiredZ)
 {
-    float w_n = 2.0f;
+    float w_n = 0.9f;
     float zeta = 0.8f;
     float kp1 = 2.0f * w_n * zeta;
     float kp2 = w_n / (2.0f * zeta);
@@ -312,8 +316,8 @@ void OffboardControl::Controller_xyz(float DesiredX, float DesiredY, float Desir
     float ux = -(ux1 * m) / fz;
     float uy = -(uy1 * m) / fz;
 
-    float Roll_d  = asin(std::clamp(ux * sinf(Yaw_d) - uy * cosf(Yaw_d), float(asin(-M_PI/6)), float(asin(M_PI/6))));
-    float Pitch_d = asin(std::clamp((ux * cosf(Yaw_d) + uy * sinf(Yaw_d)) / cosf(Roll_d), float(asin(-M_PI/6)), float(asin(M_PI/6))));
+    float Roll_d  = asin(std::clamp(ux * sinf(Yaw_d) - uy * cosf(Yaw_d), float(asin(-M_PI/8)), float(asin(M_PI/8))));
+    float Pitch_d = asin(std::clamp((ux * cosf(Yaw_d) + uy * sinf(Yaw_d)) / cosf(Roll_d), float(asin(-M_PI/8)), float(asin(M_PI/8))));
     publish_vehicle_attitude_setpoint(Altitude_controller(DesiredZ), RPY_to_Quaternion(Roll_d, Pitch_d, Yaw_d));
 }
 
@@ -323,7 +327,7 @@ void OffboardControl::xyz_setpoint(float x_desired, float y_desired, float z_des
     pos_d.y = pos_cur.y + y_desired;
     pos_d.z = pos_cur.z + z_desired;
 }
-    
+
 std::array<float ,2> OffboardControl::constrainXY(float vel_x, float vel_y, float vel_max)
 {
     float vel = sqrtf(vel_x * vel_x + vel_y * vel_y);
