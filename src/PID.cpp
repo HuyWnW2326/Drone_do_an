@@ -90,14 +90,6 @@ public:
         
 
         auto timer_callback = [this]() -> void {
-            lat_target[0] = 10.850496;
-            lon_target[0] = 106.770971;
-
-            lat_target[1] = 10.850402;
-            lon_target[1] = 106.770954;
-
-            lat_target[2] = 10.850549;
-            lon_target[2] = 106.770933;
             if(timer_count >= 50)
             {
                 timer_count = 0;
@@ -107,12 +99,6 @@ public:
                 RCLCPP_INFO(this->get_logger(), "lon_target2 = %.6f", lon_target[1]);
                 RCLCPP_INFO(this->get_logger(), "lat_target3 = %.6f", lat_target[2]);
                 RCLCPP_INFO(this->get_logger(), "lon_target3 = %.6f", lon_target[2]);
-                // RCLCPP_INFO(this->get_logger(), "x_d = %.3f", pos_d.x);
-                // RCLCPP_INFO(this->get_logger(), "y_d = %.3f", pos_d.y);
-                // RCLCPP_INFO(this->get_logger(), "z_d = %.3f", pos_d.z);
-                // RCLCPP_INFO(this->get_logger(), "x_current = %.3f", pos_cur.x);
-                // RCLCPP_INFO(this->get_logger(), "y_current = %.3f", pos_cur.y);
-                // RCLCPP_INFO(this->get_logger(), "z_current = %.3f", pos_cur.z);
                 std::cout << std::endl;
             }
             t_end = this->get_clock()->now().seconds();
@@ -142,7 +128,9 @@ public:
                 state_offboard = 0;
             publish_offboard_control_mode();
             if((state_offboard) && (Rc_CH6 > 1500))
+            {
                 Controller_xyz(pos_d.x, pos_d.y, pos_d.z);
+            }
             timer_count ++;
         };
         timer_ = this->create_wall_timer(10ms, timer_callback);
@@ -176,7 +164,7 @@ private:
     float g = 9.8f;
     float m = 1.820f;
     float b = 4.6 * pow(10,-6);
-    float omg_max = 1285.0f;
+    float omg_max = 1315.0f;
     // float m = 1.545;
     // float b = 4.6 * pow(10,-6);
     // float omg_max = 1100;
@@ -225,7 +213,7 @@ void OffboardControl::pos_global_2_local(float lat_target, float lon_target)
     delta_lat = (lat_target - lat_current);   // Don vi do
     delta_lon = (lon_target - lon_current);   // Don vi do
     pos_d.x = pos_cur.x + delta_lat * 111320.0f;   // 1 do = 111320.0 m
-    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cosf(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
+    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cos(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
 }
 
 void OffboardControl::publish_offboard_control_mode()
@@ -303,15 +291,21 @@ float OffboardControl::Altitude_controller(float DesiredZ)
 
 void OffboardControl::Controller_xyz(float DesiredX, float DesiredY, float DesiredZ)
 {
-    float w_n = 0.9f;
-    float zeta = 0.8f;
-    float kp1 = 2.0f * w_n * zeta;
-    float kp2 = w_n / (2.0f * zeta);
+    float w_n_x = 0.9f;
+    float zeta_x = 0.8f;
+    float w_n_y = 0.9f;
+    float zeta_y = 0.8f;
 
-    std::array<float ,2> vel_xy = constrainXY((DesiredX - pos_cur.x) * kp2, (DesiredY - pos_cur.y) * kp2, 4.0f);
+    float kp1_x = 2.0f * w_n_x * zeta_x;
+    float kp2_x = w_n_x / (2.0f * zeta_x);
 
-    float ux1 = kp1 * (vel_xy[0] - vel_cur.x);
-    float uy1 = kp1 * (vel_xy[1] - vel_cur.y);
+    float kp1_y = 2.0f * w_n_y * zeta_y;
+    float kp2_y = w_n_y / (2.0f * zeta_y);
+
+    std::array<float ,2> vel_xy = constrainXY((DesiredX - pos_cur.x) * kp2_x, (DesiredY - pos_cur.y) * kp2_y, 2.5f);
+
+    float ux1 = kp1_x * (vel_xy[0] - vel_cur.x);
+    float uy1 = kp1_y * (vel_xy[1] - vel_cur.y);
 
     float ux = -(ux1 * m) / fz;
     float uy = -(uy1 * m) / fz;
