@@ -69,23 +69,23 @@ public:
             Rc_CH6 = msg->values[5];
         });
 
-        // point1_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point1", qos,
-        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-        //     lat_target[0] = msg->x;
-        //     lon_target[0] = msg->y;
-        // });
+        point1_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point1", qos,
+        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+            lat_target[0] = msg->x;
+            lon_target[0] = msg->y;
+        });
 
-        // point2_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point2", qos,
-        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-        //     lat_target[1] = msg->x;
-        //     lon_target[1] = msg->y;
-        // });
+        point2_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point2", qos,
+        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+            lat_target[1] = msg->x;
+            lon_target[1] = msg->y;
+        });
 
-        // point3_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point3", qos,
-        // [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-        //     lat_target[2] = msg->x;
-        //     lon_target[2] = msg->y;
-        // });
+        point3_subscription_ = this->create_subscription<geometry_msgs::msg::Point>("/point3", qos,
+        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
+            lat_target[2] = msg->x;
+            lon_target[2] = msg->y;
+        });
 
         
 
