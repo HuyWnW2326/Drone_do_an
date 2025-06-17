@@ -183,7 +183,7 @@ public:
                         }
                         break;
                     case POINT1:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25) && !FLAG_POINT1) || (timer_count >= 1000))
+                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT1) || (timer_count >= 1000))
                         {
                             FLAG_POINT1 = true;
                             state_drone = 10;
@@ -199,7 +199,7 @@ public:
                         }
                         break;
                     case POINT2:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25) && !FLAG_POINT2) || (timer_count >= 1000))
+                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT2) || (timer_count >= 1000))
                         {
                             FLAG_POINT2 = true;
                             state_drone = 20;
@@ -215,7 +215,7 @@ public:
                         }
                         break;
                     case POINT3:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25) && !FLAG_POINT3) || (timer_count >= 1000))
+                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT3) || (timer_count >= 1000))
                         {
                             FLAG_POINT3 = true;
                             state_drone = 30;
@@ -230,7 +230,7 @@ public:
                         }
                         break;
                     case RETURN:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25) && !FLAG_RETURN) || (timer_count >= 1000))
+                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_RETURN) || (timer_count >= 1000))
                         {
                             FLAG_RETURN = true;
                             state_drone = 40;
@@ -298,10 +298,10 @@ private:
     // float m = 1.820f;
     // float b = 4.6 * pow(10,-6);
     // float omg_max = 1285.0f;
-    float m = 1.545;
-    float b = 4.6 * pow(10,-6);
-    float omg_max = 1100;
-    const double f_max = 4 * b * pow(omg_max,2); 
+    float m = 1.545f;
+    float b = 4.6f * pow(10,-6);
+    float omg_max = 1100.0f;
+    const double f_max = 4.0f * b * pow(omg_max,2); 
 
     float lon_cur = 106.770916f;
     float lat_cur = 10.850679f;
@@ -410,7 +410,7 @@ void OffboardControl::pos_global_2_local(float lat_target, float lon_target)
     delta_lat = (lat_target - lat_cur);   // Don vi do
     delta_lon = (lon_target - lon_cur);   // Don vi do
     pos_d.x = pos_cur.x + delta_lat * 111320.0f;   // 1 do = 111320.0 m
-    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cos(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
+    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cosf(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
 }
 
 void OffboardControl::UAV_pos_pub(float lat, float lon)
@@ -459,8 +459,8 @@ void OffboardControl::pub_vehicle_cmd(uint16_t command, float param1, float para
 void OffboardControl::pub_vehicle_att_sp(float thrust, std::array<float, 4> quaternion)
 {
     VehicleAttitudeSetpoint msg{};
-    msg.thrust_body[0] = 0.0;
-    msg.thrust_body[1] = 0.0;
+    msg.thrust_body[0] = 0.0f;
+    msg.thrust_body[1] = 0.0f;
     msg.thrust_body[2] = thrust;
     msg.q_d[0] = quaternion[0];
     msg.q_d[1] = quaternion[1];
@@ -526,8 +526,8 @@ void OffboardControl::xyz_controller(float desired_x, float desired_y, float des
     float ux = -(ux1 * m) / fz;
     float uy = -(uy1 * m) / fz;
 
-    float roll_d  = asin(std::clamp(ux * sinf(yaw_d) - uy * cosf(yaw_d), float(asin(-M_PI/8)), float(asin(M_PI/8))));
-    float pitch_d = asin(std::clamp((ux * cosf(yaw_d) + uy * sinf(yaw_d)) / cosf(roll_d), float(asin(-M_PI/8)), float(asin(M_PI/8))));
+    float roll_d  = asinf(std::clamp(ux * sinf(yaw_d) - uy * cosf(yaw_d), float(asinf(-M_PI/8)), float(asinf(M_PI/8))));
+    float pitch_d = asinf(std::clamp((ux * cosf(yaw_d) + uy * sinf(yaw_d)) / cosf(roll_d), float(asinf(-M_PI/8)), float(asinf(M_PI/8))));
     pub_vehicle_att_sp(alt_controller(desired_z), RPY_to_quaternion(roll_d, pitch_d, yaw_d));
 }
 

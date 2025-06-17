@@ -12,19 +12,19 @@ add_executable(PID_node src/PID.cpp)
 ament_target_dependencies(PID_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 add_executable(SMC_Circle_node src/SMC_Circle.cpp)
-ament_target_dependencies(SMC_Circle_node rclcpp px4_msgs geometry_msgs)
+ament_target_dependencies(SMC_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 add_executable(SMC_Hold_node src/SMC_Hold.cpp)
-ament_target_dependencies(SMC_Hold_node rclcpp px4_msgs geometry_msgs)
+ament_target_dependencies(SMC_Hold_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 add_executable(PID_Torque_node src/PID_Torque.cpp)
-ament_target_dependencies(PID_Torque_node rclcpp px4_msgs geometry_msgs)
+ament_target_dependencies(PID_Torque_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 add_executable(PID_Circle_node src/PID_Circle.cpp)
-ament_target_dependencies(PID_Circle_node rclcpp px4_msgs geometry_msgs)
+ament_target_dependencies(PID_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 add_executable(ISMC_Circle_node src/ISMC_Circle.cpp)
-ament_target_dependencies(ISMC_Circle_node rclcpp px4_msgs geometry_msgs)
+ament_target_dependencies(ISMC_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 install(DIRECTORY
   launch
