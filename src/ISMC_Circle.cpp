@@ -1,20 +1,16 @@
-
 #include <px4_msgs/msg/offboard_control_mode.hpp>
-#include <px4_msgs/msg/trajectory_setpoint.hpp>
-#include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_attitude_setpoint.hpp>
-#include <px4_msgs/msg/vehicle_thrust_setpoint.hpp>
 
 #include <px4_msgs/msg/vehicle_local_position.hpp>
-#include <px4_msgs/msg/vehicle_global_position.hpp>
 #include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/input_rc.hpp>
+
+#include <geometry_msgs/msg/vector3.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <stdint.h>
 #include <math.h>
-#include <geometry_msgs/msg/vector3.hpp>
-
 #include <chrono>
 #include <iostream>
 
@@ -29,10 +25,8 @@ public:
     OffboardControl() : Node("offboard_control")
     {
         offboard_control_mode_publisher_ = this->create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
-        trajectory_setpoint_publisher_ = this->create_publisher<TrajectorySetpoint>("/fmu/in/trajectory_setpoint", 10);
-        vehicle_command_publisher_ = this->create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
         vehicle_attitude_setpoint_publisher_= this->create_publisher<VehicleAttitudeSetpoint>("/fmu/in/vehicle_attitude_setpoint", 10);
-        vehicle_thrust_setpoint_publisher_= this->create_publisher<VehicleThrustSetpoint>("/fmu/in/vehicle_thrust_setpoint", 10);
+        servo_publisher_= this->create_publisher<std_msgs::msg::Bool>("/servo", 10);
 
         rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
         auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 10), qos_profile);
@@ -66,18 +60,6 @@ public:
         });
 
         auto timer_callback = [this]() -> void {
-            if(timer_count >= 50)
-            {
-                timer_count = 0;
-                std::cout << "x_d         ="  << pos_d.x << std::endl;
-                std::cout << "y_d         ="  << pos_d.y << std::endl;
-                std::cout << "z_d         ="  << pos_d.z << std::endl;
-                std::cout << "x_current   ="  << pos_cur.x << std::endl;
-                std::cout << "y_current   ="  << pos_cur.y << std::endl;
-                std::cout << "z_current   ="  << pos_cur.z << std::endl;
-                std::cout << std::endl;
-            }
-
             if((Rc_CH6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
@@ -85,7 +67,10 @@ public:
                 y_center = pos_cur.y - 3;
                 pos_d.z = pos_cur.z;
 				t_start = this->get_clock()->now().seconds();
-                Yaw_hover =  Yaw_current;
+                // pos_d.x = pos_cur.x;
+                // pos_d.y = pos_cur.y;
+                // pos_d.z = pos_cur.z;
+                Yaw_d =  Yaw_current;
                 std::cout << "Offboard_mode  =" << std::endl;
             }
             else if((Rc_CH6 <= 1500) && (state_offboard == 1)) 
@@ -94,32 +79,30 @@ public:
                 std::cout << "Position_mode  =" << std::endl;
             }
             publish_offboard_control_mode();
-            if(state_offboard == 1)
+            if(state_offboard == 1 && Rc_CH6 >= 1500)
             {
+                timer_count ++;
 				delta_t = this->get_clock()->now().seconds() - t_start;
-				pos_d.x = x_center + 3 * sin(2 * M_PI / 15 * delta_t);
-				pos_d.y = y_center + 3 * cos(2 * M_PI / 15 * delta_t);
-                Altitude_controller(pos_d.z);
+				pos_d.x = x_center + 3 * sin(2 * M_PI / 10 * delta_t);
+				pos_d.y = y_center + 3 * cos(2 * M_PI / 10 * delta_t);
+                if(timer_count >= 1200 && !FLAG_SERVO)
+                {
+                    FLAG_SERVO = true;
+                    servo(true);
+                }
                 Controller_xy(pos_d.x, pos_d.y);
+                Altitude_controller(pos_d.z);
             }
-            timer_count ++;
         };
         timer_ = this->create_wall_timer(10ms, timer_callback);
     }
-
-    void RPY_to_Quaternion(float Roll, float Pitch, float Yaw);
-    void Altitude_controller(float DesiredValueZ);
-    void Controller_xy(float DesiredValueX, float DesiredValueY);
-    void xyz_setpoint(float x_desired, float y_desired, float z_desired);
 
 private:
     rclcpp::TimerBase::SharedPtr timer_;
 
     rclcpp::Publisher<OffboardControlMode>::SharedPtr offboard_control_mode_publisher_;
-    rclcpp::Publisher<TrajectorySetpoint>::SharedPtr trajectory_setpoint_publisher_;
-    rclcpp::Publisher<VehicleCommand>::SharedPtr vehicle_command_publisher_;
     rclcpp::Publisher<VehicleAttitudeSetpoint>::SharedPtr vehicle_attitude_setpoint_publisher_;
-    rclcpp::Publisher<VehicleThrustSetpoint>::SharedPtr vehicle_thrust_setpoint_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr servo_publisher_;
 
     rclcpp::Subscription<VehicleLocalPosition>::SharedPtr vehicle_local_position_subscription_;
     rclcpp::Subscription<VehicleAttitude>::SharedPtr vehicle_attitude_subscription_;
@@ -132,12 +115,12 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    // float m = 1.820f;
-    // float b = 4.6 * pow(10,-6);
-    // float omg_max = 1285.0f;
-    const float m = 1.545f;
-    const float b = 4.6f * pow(10,-6);
-    const float omg_max = 1100.0f;
+    float m = 1.820f;
+    float b = 4.6 * pow(10,-6);
+    float omg_max = 1285.0f;
+    // const float m = 1.545f;
+    // const float b = 4.6f * pow(10,-6);
+    // const float omg_max = 1100.0f;
     const double f_max = 4 * b * pow(omg_max,2); 
 
     Vector3 pos_d;
@@ -145,7 +128,7 @@ private:
     Vector3 pos_cur;
     Vector3 vel_cur;
 
-    float Yaw_hover = 0.0f;
+    float Yaw_d = 0.0f;
     float Roll_current  = 0.0f;
     float Pitch_current = 0.0f;
     float Yaw_current   = 0.0f;
@@ -158,11 +141,14 @@ private:
 	float delta_t = 0.0f;
 	float x_center = 0.0f;
 	float y_center = 0.0f;
+    bool FLAG_SERVO = false;
 
     void publish_offboard_control_mode();
-    void publish_trajectory_setpoint(float x, float y, float z);
-    void publish_vehicle_command(uint16_t command, float param1 = 0.0f, float param2 = 0.0f);
     void publish_vehicle_attitude_setpoint(float thrust_z);
+    void servo(bool data);
+    void RPY_to_Quaternion(float Roll, float Pitch, float Yaw);
+    void Altitude_controller(float DesiredValueZ);
+    void Controller_xy(float DesiredValueX, float DesiredValueY);
 };
 
 void OffboardControl::publish_offboard_control_mode()
@@ -178,28 +164,11 @@ void OffboardControl::publish_offboard_control_mode()
     offboard_control_mode_publisher_->publish(msg);
 }
 
-void OffboardControl::publish_trajectory_setpoint(float x, float y, float z)
+void OffboardControl::servo(bool data)
 {
-    TrajectorySetpoint msg{};
-    msg.position = {x, y, z};
-    msg.yaw = Yaw_hover;
-    msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
-    trajectory_setpoint_publisher_->publish(msg);
-}
-
-void OffboardControl::publish_vehicle_command(uint16_t command, float param1, float param2)
-{
-    VehicleCommand msg{};
-    msg.param1 = param1;
-    msg.param2 = param2;
-    msg.command = command;
-    msg.target_system = 1;
-    msg.target_component = 1;
-    msg.source_system = 1;
-    msg.source_component = 1;
-    msg.from_external = true;
-    msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
-    vehicle_command_publisher_->publish(msg);
+    std_msgs::msg::Bool msg{};
+    msg.data = data;
+    servo_publisher_->publish(msg);
 }
 
 void OffboardControl::publish_vehicle_attitude_setpoint(float thrust_z)
@@ -235,9 +204,11 @@ void OffboardControl::Altitude_controller(float DesiredValueZ)
 {
     float k_z = 3.0f;
     float lamda_z = 2.0f;
+    float c_z = 0.1f;
     static float tz_last = 0.0f;
     static float z_d_last = 0.0f;
     static float vz_d_last = 0.0f;
+    static float integral_z = 0.0f;
     float vz_d = 0.0f;
     float az_d = 0.0f;
     float err_dot = 0.0f;
@@ -249,10 +220,12 @@ void OffboardControl::Altitude_controller(float DesiredValueZ)
     {
         vz_d = (DesiredValueZ - z_d_last) / delta_tz;
         az_d = (vz_d - vz_d_last) / delta_tz;
-    }
+    } 
     err_dot = vz_d - vel_cur.z;
-    fz = (-m/(cosf(Roll_current) * cosf(Pitch_current))) * (az_d - g + lamda_z * err_dot + k_z * std::clamp(err_dot + lamda_z * err_z, -1.0f, 1.0f));
-    
+    integral_z = std::clamp(integral_z + c_z * err_z * delta_tz, -0.15f, 0.15f); // Limit the integral term to prevent windup
+    float s_z = err_dot + lamda_z * err_z + integral_z;
+    fz = (-m/(cosf(Roll_current) * cosf(Pitch_current))) * (az_d - g + lamda_z * err_dot + c_z * err_z + k_z * std::clamp(s_z, -1.0f, 1.0f));
+
     tz_last = this->get_clock()->now().seconds();
     vz_d_last = vz_d;
     z_d_last = DesiredValueZ;
@@ -262,15 +235,15 @@ void OffboardControl::Altitude_controller(float DesiredValueZ)
 
 void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
 {
-    float Yaw_d = Yaw_hover;
-
-    float k_x = 2.0f;
+    float k_x = 3.0f;
     float lamda_x = 1.5f;
+    float c_x = 0.07f;
     static float tx_last = 0.0f;
     float delta_tx = this->get_clock()->now().seconds() - tx_last;
 
     static float x_d_last = 0.0f;
     static float vx_d_last = 0.0f;
+    static float integral_x = 0.0f;
     float vx_d = 0.0f;
     float ax_d = 0.0f;
     float err_x_dot = 0.0f;
@@ -281,18 +254,22 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
         ax_d = (vx_d - vx_d_last) / delta_tx;
     }
     err_x_dot = vx_d - vel_cur.x;
-    float ux1 = (-m/fz) * (ax_d + lamda_x * err_x_dot + k_x * std::clamp(err_x_dot + lamda_x * err_x, -1.0f, 1.0f));
+    integral_x = std::clamp(integral_x + c_x * err_x * delta_tx, -0.15f, 0.15f);
+    float s_x = err_x_dot + lamda_x * err_x + integral_x;
+    float ux1 = (-m/fz) * (ax_d + lamda_x * err_x_dot + c_x * err_x + k_x * std::clamp(s_x, -1.0f, 1.0f));
     tx_last = this->get_clock()->now().seconds();
     vx_d_last = vx_d;
     x_d_last = DesiredValueX;
 
-    float k_y = 2.5f;
-    float lamda_y = 1.6f;
+    float k_y = 3.0f;
+    float lamda_y = 1.5f;
+    float c_y = 0.07f;
     static float ty_last = 0.0f;
     float delta_ty = this->get_clock()->now().seconds() - ty_last;
 
     static float y_d_last = 0.0f;
     static float vy_d_last = 0.0f;
+    static float integral_y = 0.0f;
     float vy_d = 0.0f;
     float ay_d = 0.0f;
     float err_y_dot = 0.0f;
@@ -303,20 +280,16 @@ void OffboardControl::Controller_xy(float DesiredValueX, float DesiredValueY)
         ay_d = (vy_d - vy_d_last) / delta_ty;
     }
     err_y_dot = vy_d - vel_cur.y;
-    float uy1 = (-m/fz) * (ay_d + lamda_y * err_y_dot + k_y * std::clamp(err_y_dot + lamda_y * err_y, -1.0f, 1.0f));
+    integral_y = std::clamp(integral_y + c_y * err_y * delta_ty, -0.15f, 0.15f);
+    float s_y = err_y_dot + lamda_y * err_y + integral_y;
+    float uy1 = (-m/fz) * (ay_d + lamda_y * err_y_dot + c_y * err_y + k_y * std::clamp(s_y, -1.0f, 1.0f));
     ty_last = this->get_clock()->now().seconds();
     vy_d_last = vy_d;
     y_d_last = DesiredValueY;
 
-    float Roll_d  = asin(std::clamp(ux1 * sinf(Yaw_d) - uy1 * cosf(Yaw_d), float(asin(-M_PI/6)), float(asin(M_PI/6))));
-    float Pitch_d = asin(std::clamp((ux1 * cosf(Yaw_d) + uy1 * sinf(Yaw_d)) / cosf(Roll_d), float(asin(-M_PI/6)), float(asin(M_PI/6))));
-    RPY_to_Quaternion(Roll_d, Pitch_d, Yaw_hover);
-}
-void OffboardControl::xyz_setpoint(float x_desired, float y_desired, float z_desired)
-{
-    pos_d.x = pos_cur.x + x_desired;
-    pos_d.y = pos_cur.y + y_desired;
-    pos_d.z = pos_cur.z + z_desired;
+    float Roll_d  = asin(std::clamp(ux1 * sinf(Yaw_d) - uy1 * cosf(Yaw_d), float(asin(-M_PI/7)), float(asin(M_PI/7))));
+    float Pitch_d = asin(std::clamp((ux1 * cosf(Yaw_d) + uy1 * sinf(Yaw_d)) / cosf(Roll_d), float(asin(-M_PI/7)), float(asin(M_PI/7))));
+    RPY_to_Quaternion(Roll_d, Pitch_d, Yaw_d);
 }
     
 int main(int argc, char *argv[])
