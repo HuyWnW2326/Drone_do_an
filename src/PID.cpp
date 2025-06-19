@@ -7,7 +7,6 @@
 #include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/input_rc.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
-#include <px4_msgs/msg/distance_sensor.hpp>
 #include <px4_msgs/msg/failsafe_flags.hpp>
 
 #include <geometry_msgs/msg/point.hpp>
@@ -114,32 +113,26 @@ public:
             is_takeoff = msg->z;
         });
 
-        // distance_sub_ = this->create_subscription<px4_msgs::msg::DistanceSensor>("/fmu/out/distance_sensor", qos,
-        // [this](const px4_msgs::msg::DistanceSensor::UniquePtr msg) {
-        //     pos_cur.z = (-msg->current_distance) / (cosf(roll_cur) * cosf(pitch_cur)); 
-        // });
-
         failsafeFlag_sub_ = this->create_subscription<px4_msgs::msg::FailsafeFlags>("/fmu/out/failsafe_flags", qos,
         [this](const px4_msgs::msg::FailsafeFlags::UniquePtr msg) {
-            if(state_drone == 1 && msg->local_position_invalid)
+            if(state_drone == 1 && !msg->global_position_invalid)
             {
                 state_drone = 2;
                 UAV_state_pub(state_drone);       // Send state 2 of UAV to ready for takeoff
             }
         });
-        
+
         auto timer_callback = [this]() -> void {
             timer_count++;          // Timer for controlling UAV behavior
-            timer_pub_pos++;        // Timer for publishing UAV position
-            pub_offb_ctl_mode();      
-            if(timer_pub_pos >= 35)
+            timer_pub_pos++;        // Timer for publishing UAV position      
+            if(timer_pub_pos >= 500)
             {
                 timer_pub_pos = 0;
                 UAV_pos_pub(lat_cur, lon_cur);       // Publish UAV current position
             }
-                
             if(Rc_CH6 > 1500 && is_takeoff && state_drone != 1)
             {
+                pub_offb_ctl_mode();
                 switch (STEP)
                 {
                 case READY:
@@ -177,8 +170,8 @@ public:
                         if((pos_cur.z < pos_d.z + 0.5)||(timer_count >= 500))
                         {
                             STEP_OFFBOARD = POINT1;
-                            // pos_global_2_local(lat_target[0], lon_target[0]);
-                            xyz_setpoint(-3.0f, 0.0f, 0.0f);
+                            pos_global_2_local(lat_target[0], lon_target[0]);
+                            // xyz_setpoint(-5.0f, 0.0f, 0.0f);
                             timer_count = 0;
                         }
                         break;
@@ -187,15 +180,16 @@ public:
                         {
                             FLAG_POINT1 = true;
                             state_drone = 10;
-                            UAV_state_pub(state_drone);       // Send state 10 of UAV to indicate that it reached point 1 
+                            UAV_state_pub(state_drone);       // Send state 10 of UAV to indicate that it reached point 1
                             timer_count = 0;
                         }
-                        else if(FLAG_POINT1 && (timer_count >= 200))
+                        else if(FLAG_POINT1 && (timer_count >= 250))
                         {
                             STEP_OFFBOARD = POINT2;
-                            // pos_global_2_local(lat_target[1], lon_target[1]);
-                            xyz_setpoint(0.0f, 2.0f, 0.0f);
+                            pos_global_2_local(lat_target[1], lon_target[1]);
+                            // xyz_setpoint(0.0f, 3.0f, 0.0f);
                             timer_count = 0;
+                            UAV_state_pub(11);
                         }
                         break;
                     case POINT2:
@@ -206,12 +200,13 @@ public:
                             UAV_state_pub(state_drone);       // Send state 20 of UAV to indicate that it reached point 2
                             timer_count = 0;
                         }
-                        else if(FLAG_POINT2 && (timer_count >= 200))
+                        else if(FLAG_POINT2 && (timer_count >= 250))
                         {
                             STEP_OFFBOARD = POINT3;
-                            // pos_global_2_local(lat_target[2], lon_target[2]);
-                            xyz_setpoint(-3.0f, 2.0f, 0.0f);
+                            pos_global_2_local(lat_target[2], lon_target[2]);
+                            // xyz_setpoint(-5.0f, 2.0f, 0.0f);
                             timer_count = 0;
+                            UAV_state_pub(11);
                         }
                         break;
                     case POINT3:
@@ -222,11 +217,12 @@ public:
                             UAV_state_pub(state_drone);       // Send state 30 of UAV to indicate that it reached point 3
                             timer_count = 0;
                         }
-                        else if(FLAG_POINT3 && (timer_count >= 200))
+                        else if(FLAG_POINT3 && (timer_count >= 250))
                         {
                             STEP_OFFBOARD = RETURN;
                             xyz_setpoint(-pos_cur.x, -pos_cur.y, 0.0f);
                             timer_count = 0;
+                            UAV_state_pub(11);
                         }
                         break;
                     case RETURN:
@@ -237,7 +233,7 @@ public:
                             UAV_state_pub(state_drone);       // Send state 40 of UAV to indicate that it reached return point
                             timer_count = 0;
                         }
-                        else if(FLAG_RETURN && (timer_count >= 200))
+                        else if(FLAG_RETURN && (timer_count >= 250))
                         {
                             STEP = LANDING;
                             timer_count = 0;
@@ -282,7 +278,6 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point1_sub_;
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point2_sub_;
     rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point3_sub_;
-    rclcpp::Subscription<px4_msgs::msg::DistanceSensor>::SharedPtr distance_sub_;
     rclcpp::Subscription<px4_msgs::msg::FailsafeFlags>::SharedPtr failsafeFlag_sub_;
 
     std::atomic<uint64_t> timestamp_;   //!< common synced timestamped
@@ -295,12 +290,12 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    // float m = 1.820f;
-    // float b = 4.6 * pow(10,-6);
-    // float omg_max = 1285.0f;
-    float m = 1.545f;
-    float b = 4.6f * pow(10,-6);
-    float omg_max = 1100.0f;
+    float m = 1.820f;
+    float b = 4.6 * pow(10,-6);
+    float omg_max = 1285.0f;
+    // float m = 1.545f;
+    // float b = 4.6f * pow(10,-6);
+    // float omg_max = 1100.0f;
     const double f_max = 4.0f * b * pow(omg_max,2); 
 
     float lon_cur = 106.770916f;
@@ -395,7 +390,7 @@ void OffboardControl::offboard()
 void OffboardControl::position()
 {
     pub_vehicle_cmd(VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.0f, 3.0f);
-    RCLCPP_INFO(this->get_logger(), "Position command send");
+    // RCLCPP_INFO(this->get_logger(), "Position command send");
 }
 
 void OffboardControl::manual()

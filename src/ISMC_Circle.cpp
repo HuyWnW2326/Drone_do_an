@@ -88,6 +88,7 @@ public:
                 if(timer_count >= 1200 && !FLAG_SERVO)
                 {
                     FLAG_SERVO = true;
+                    m = 2.0f;
                     servo(true);
                 }
                 xy_controller(pos_d.x, pos_d.y);
@@ -115,7 +116,7 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    float m = 1.820f;
+    float m = 2.353f;
     float b = 4.6 * pow(10,-6);
     float omg_max = 1285.0f;
     // const float m = 1.545f;

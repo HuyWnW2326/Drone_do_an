@@ -14,12 +14,6 @@ ament_target_dependencies(PID_node rclcpp px4_msgs geometry_msgs std_msgs)
 add_executable(SMC_Circle_node src/SMC_Circle.cpp)
 ament_target_dependencies(SMC_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
 
-add_executable(SMC_Hold_node src/SMC_Hold.cpp)
-ament_target_dependencies(SMC_Hold_node rclcpp px4_msgs geometry_msgs std_msgs)
-
-add_executable(PID_Torque_node src/PID_Torque.cpp)
-ament_target_dependencies(PID_Torque_node rclcpp px4_msgs geometry_msgs std_msgs)
-
 add_executable(PID_Circle_node src/PID_Circle.cpp)
 ament_target_dependencies(PID_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
 
@@ -33,11 +27,9 @@ install(DIRECTORY
 
 install(TARGETS
   PID_node
-  PID_Torque_node
   PID_Circle_node
   SMC_Circle_node
   ISMC_Circle_node
-  SMC_Hold_node
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
