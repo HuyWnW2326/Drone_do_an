@@ -60,16 +60,29 @@ public:
         });
 
         auto timer_callback = [this]() -> void {
+            timer_count++;
+            if(timer_count >= 20)
+            {
+                timer_count = 0;
+                std::cout << "x_cur  = " << pos_cur.x << std::endl;
+                std::cout << "y_cur  = " << pos_cur.y << std::endl;
+                std::cout << "z_cur  = " << pos_cur.z << std::endl;
+                std::cout << "x_d  = " << pos_d.x << std::endl;
+                std::cout << "y_d  = " << pos_d.y << std::endl;
+                std::cout << "z_d  = " << pos_d.z << std::endl;
+                std::cout << std::endl;
+
+            }
             if((Rc_CH6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
-                x_center = pos_cur.x;
-                y_center = pos_cur.y - 3;
-                pos_d.z = pos_cur.z;
-				t_start = this->get_clock()->now().seconds();
-                // pos_d.x = pos_cur.x;
-                // pos_d.y = pos_cur.y;
+                // x_center = pos_cur.x;
+                // y_center = pos_cur.y - 3;
                 // pos_d.z = pos_cur.z;
+				// t_start = this->get_clock()->now().seconds();
+                pos_d.x = pos_cur.x - 10.0f;
+                pos_d.y = pos_cur.y + 5.0f;
+                pos_d.z = pos_cur.z;
                 yaw_d =  yaw_cur;
                 std::cout << "Offboard_mode  =" << std::endl;
             }
@@ -81,16 +94,15 @@ public:
             pub_offb_ctl_mode();
             if(state_offboard == 1 && Rc_CH6 >= 1500)
             {
-                timer_count ++;
-				delta_t = this->get_clock()->now().seconds() - t_start;
-				pos_d.x = x_center + 3 * sinf(2 * M_PI / 10 * delta_t);
-				pos_d.y = y_center + 3 * cosf(2 * M_PI / 10 * delta_t);
-                if(timer_count >= 600 && !FLAG_SERVO)
-                {
-                    FLAG_SERVO = true;
-                    m = 2.0;
-                    servo(true);
-                }
+                // timer_count ++;
+				// delta_t = this->get_clock()->now().seconds() - t_start;
+				// pos_d.x = x_center + 3 * sinf(2 * M_PI / 10 * delta_t);
+				// pos_d.y = y_center + 3 * cosf(2 * M_PI / 10 * delta_t);
+                // if(timer_count >= 600 && !FLAG_SERVO)
+                // {
+                //     FLAG_SERVO = true;
+                //     servo(true);
+                // }
                 xy_controller(pos_d.x, pos_d.y);
                 alt_controller(pos_d.z);
             }
@@ -119,9 +131,9 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    float m = 2.353f;
+    float m = 2.0f;
     float b = 4.6f * pow(10,-6);
-    float omg_max = 1285.0f;
+    float omg_max = 1310.0f;
     // const float m = 1.545f;
     // const float b = 4.6f * pow(10,-6);
     // const float omg_max = 1100.0f;
@@ -235,7 +247,7 @@ void OffboardControl::alt_controller(float desired_z)
 
 void OffboardControl::xy_controller(float desired_x, float desired_y)
 {
-    float k_x = 3.0f;
+    float k_x = 2.8f;
     float lamda_x = 1.5f;
     static float tx_last = 0.0f;
     // float t_x = this->get_clock()->now().seconds();
@@ -258,7 +270,7 @@ void OffboardControl::xy_controller(float desired_x, float desired_y)
     vx_d_last = vx_d;
     x_d_last = desired_x;
 
-    float k_y = 3.0f;
+    float k_y = 2.8f;
     float lamda_y = 1.5f;
     static float ty_last = 0.0f;
     // float t_y = this->get_clock()->now().seconds();

@@ -60,16 +60,29 @@ public:
         });
 
         auto timer_callback = [this]() -> void {
+            timer_count++;
+            if(timer_count >= 20)
+            {
+                timer_count = 0;
+                std::cout << "x_cur  = " << pos_cur.x << std::endl;
+                std::cout << "y_cur  = " << pos_cur.y << std::endl;
+                std::cout << "z_cur  = " << pos_cur.z << std::endl;
+                std::cout << "x_d  = " << pos_d.x << std::endl;
+                std::cout << "y_d  = " << pos_d.y << std::endl;
+                std::cout << "z_d  = " << pos_d.z << std::endl;
+                std::cout << std::endl;
+
+            }
             if((Rc_CH6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
-                x_center = pos_cur.x;
-                y_center = pos_cur.y - 3;
-                pos_d.z = pos_cur.z;
-				t_start = this->get_clock()->now().seconds();
-                // pos_d.x = pos_cur.x;
-                // pos_d.y = pos_cur.y;
+                // x_center = pos_cur.x;
+                // y_center = pos_cur.y - 3;
                 // pos_d.z = pos_cur.z;
+				// t_start = this->get_clock()->now().seconds();
+                pos_d.x = pos_cur.x - 10;
+                pos_d.y = pos_cur.y + 5;
+                pos_d.z = pos_cur.z;
                 yaw_d =  yaw_cur;
                 std::cout << "Offboard_mode  =" << std::endl;
             }
@@ -81,21 +94,20 @@ public:
             pub_offb_ctl_mode();
             if(state_offboard == 1 && Rc_CH6 >= 1500)
             {
-                timer_count ++;
-				delta_t = this->get_clock()->now().seconds() - t_start;
-				pos_d.x = x_center + 3 * sin(2 * M_PI / 10 * delta_t);
-				pos_d.y = y_center + 3 * cos(2 * M_PI / 10 * delta_t);
-                if(timer_count >= 1200 && !FLAG_SERVO)
-                {
-                    FLAG_SERVO = true;
-                    m = 2.0f;
-                    servo(true);
-                }
+                // timer_count ++;
+				// delta_t = this->get_clock()->now().seconds() - t_start;
+				// pos_d.x = x_center + 3 * sin(2 * M_PI / 10 * delta_t);
+				// pos_d.y = y_center + 3 * cos(2 * M_PI / 10 * delta_t);
+                // if(timer_count >= 1200 && !FLAG_SERVO)
+                // {
+                //     FLAG_SERVO = true;
+                //     servo(true);
+                // }
                 xy_controller(pos_d.x, pos_d.y);
                 alt_controller(pos_d.z);
             }
         };
-        timer_ = this->create_wall_timer(10ms, timer_callback);
+        timer_ = this->create_wall_timer(20ms, timer_callback);
     }
 
 private:
@@ -116,9 +128,9 @@ private:
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    float m = 2.353f;
+    float m = 2.0;
     float b = 4.6 * pow(10,-6);
-    float omg_max = 1285.0f;
+    float omg_max = 1310.0f;
     // const float m = 1.545f;
     // const float b = 4.6f * pow(10,-6);
     // const float omg_max = 1100.0f;
@@ -203,9 +215,9 @@ void OffboardControl::RPY_to_quaternion(float roll, float pitch, float yaw)
 
 void OffboardControl::alt_controller(float desired_z)
 {
-    float k_z = 3.0f;
+    float k_z = 2.5f;
     float lamda_z = 2.0f;
-    float c_z = 0.1f;
+    float c_z = 0.07f;
     static float tz_last = 0.0f;
     static float z_d_last = 0.0f;
     static float vz_d_last = 0.0f;
@@ -223,7 +235,7 @@ void OffboardControl::alt_controller(float desired_z)
         az_d = (vz_d - vz_d_last) / delta_tz;
     } 
     err_dot = vz_d - vel_cur.z;
-    integral_z = std::clamp(integral_z + c_z * err_z * delta_tz, -0.15f, 0.15f); // Limit the integral term to prevent windup
+    integral_z = std::clamp(integral_z + c_z * err_z * delta_tz, -0.1f, 0.1f); // Limit the integral term to prevent windup
     float s_z = err_dot + lamda_z * err_z + integral_z;
     fz = (-m/(cosf(roll_cur) * cosf(pitch_cur))) * (az_d - g + lamda_z * err_dot + c_z * err_z + k_z * std::clamp(s_z, -1.0f, 1.0f));
 
@@ -236,8 +248,8 @@ void OffboardControl::alt_controller(float desired_z)
 
 void OffboardControl::xy_controller(float desired_x, float desired_y)
 {
-    float k_x = 3.0f;
-    float lamda_x = 1.5f;
+    float k_x = 2.5f;
+    float lamda_x = 1.3f;
     float c_x = 0.07f;
     static float tx_last = 0.0f;
     float delta_tx = this->get_clock()->now().seconds() - tx_last;
@@ -255,15 +267,15 @@ void OffboardControl::xy_controller(float desired_x, float desired_y)
         ax_d = (vx_d - vx_d_last) / delta_tx;
     }
     err_x_dot = vx_d - vel_cur.x;
-    integral_x = std::clamp(integral_x + c_x * err_x * delta_tx, -0.15f, 0.15f);
+    integral_x = std::clamp(integral_x + c_x * err_x * delta_tx, -0.1f, 0.1f);
     float s_x = err_x_dot + lamda_x * err_x + integral_x;
     float ux1 = (-m/fz) * (ax_d + lamda_x * err_x_dot + c_x * err_x + k_x * std::clamp(s_x, -1.0f, 1.0f));
     tx_last = this->get_clock()->now().seconds();
     vx_d_last = vx_d;
     x_d_last = desired_x;
 
-    float k_y = 3.0f;
-    float lamda_y = 1.5f;
+    float k_y = 2.5f;
+    float lamda_y = 1.3f;
     float c_y = 0.07f;
     static float ty_last = 0.0f;
     float delta_ty = this->get_clock()->now().seconds() - ty_last;
@@ -281,7 +293,7 @@ void OffboardControl::xy_controller(float desired_x, float desired_y)
         ay_d = (vy_d - vy_d_last) / delta_ty;
     }
     err_y_dot = vy_d - vel_cur.y;
-    integral_y = std::clamp(integral_y + c_y * err_y * delta_ty, -0.15f, 0.15f);
+    integral_y = std::clamp(integral_y + c_y * err_y * delta_ty, -0.1f, 0.1f);
     float s_y = err_y_dot + lamda_y * err_y + integral_y;
     float uy1 = (-m/fz) * (ay_d + lamda_y * err_y_dot + c_y * err_y + k_y * std::clamp(s_y, -1.0f, 1.0f));
     ty_last = this->get_clock()->now().seconds();
