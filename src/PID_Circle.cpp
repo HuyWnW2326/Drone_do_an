@@ -43,16 +43,16 @@ public:
             double y = msg->q[2];
             double z = msg->q[3];
 
-            Yaw_current = atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)) ;
+            yaw_cur = atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)) ;
         });
 
         input_rc_sub_ = this->create_subscription<px4_msgs::msg::InputRc>("/fmu/out/input_rc", qos,
         [this](const px4_msgs::msg::InputRc::UniquePtr msg) {
-            Rc_CH6 = msg->values[5];
+            rc_ch6 = msg->values[5];
         });
 
         auto timer_callback = [this]() -> void {
-            if((Rc_CH6 >= 1500) && (state_offboard == 0))
+            if((rc_ch6 >= 1500) && (state_offboard == 0))
             {
                 state_offboard = 1;
                 x_center = x_current;
@@ -62,16 +62,16 @@ public:
                 // x_d = x_current;
                 // y_d = y_current;
                 // z_d = z_current;
-                Yaw_d =  Yaw_current;
+                yaw_d =  yaw_cur;
                 std::cout << "Offboard_mode  =" << std::endl;
             }
-            else if((Rc_CH6 <= 1500) && (state_offboard == 1)) 
+            else if((rc_ch6 <= 1500) && (state_offboard == 1)) 
             {
                 state_offboard = 0;
                 std::cout << "Position_mode  =" << std::endl;
             }
             pub_offb_ctl_mode();
-            if(state_offboard == 1 && Rc_CH6 >= 1500)
+            if(state_offboard == 1 && rc_ch6 >= 1500)
             {
                 timer_count ++;
 				delta_t = this->get_clock()->now().seconds() - t_start;
@@ -110,10 +110,10 @@ private:
     float x_d = 0.0;
     float y_d = 0.0;
     float z_d = 0.0;
-    float Yaw_current = 0.0;
-    float Yaw_d = 0.0;
+    float yaw_cur = 0.0;
+    float yaw_d = 0.0;
 
-    float Rc_CH6 = 0.0;
+    float rc_ch6 = 0.0;
     uint8_t state_offboard = 0;
     bool FLAG_SERVO = false;
 
@@ -151,7 +151,7 @@ void OffboardControl::pub_traj_sp(float x, float y, float z)
 {
     TrajectorySetpoint msg{};
     msg.position = {x, y, z};
-    msg.yaw = Yaw_d;
+    msg.yaw = yaw_d;
     msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
     traj_sp_pub_->publish(msg);
 }

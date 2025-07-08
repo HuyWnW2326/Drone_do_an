@@ -3,15 +3,12 @@
 #include <px4_msgs/msg/vehicle_attitude_setpoint.hpp>
 
 #include <px4_msgs/msg/vehicle_local_position.hpp>
-#include <px4_msgs/msg/vehicle_global_position.hpp>
 #include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/input_rc.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <px4_msgs/msg/failsafe_flags.hpp>
 
-#include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/vector3.hpp>
-#include <std_msgs/msg/u_int32.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <stdint.h>
 #include <math.h>
@@ -47,8 +44,6 @@ public:
         offb_ctl_mode_pub_ = this->create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
         vehicle_cmd_pub_ = this->create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
         vehicle_att_sp_pub_= this->create_publisher<VehicleAttitudeSetpoint>("/fmu/in/vehicle_attitude_setpoint", 10);
-        UAV_pos_pub_= this->create_publisher<geometry_msgs::msg::Point>("/uav_position", 10);
-        UAV_state_pub_= this->create_publisher<std_msgs::msg::UInt32>("/uav_state", 10);
 
         rmw_qos_profile_t qos_profile = rmw_qos_profile_sensor_data;
         auto qos = rclcpp::QoS(rclcpp::QoSInitialization(qos_profile.history, 10), qos_profile);
@@ -63,13 +58,6 @@ public:
             vel_cur.y = msg->vy;
             vel_cur.z = msg->vz;
         });     
-
-        vehicle_global_pos_sub_ = this->create_subscription<px4_msgs::msg::VehicleGlobalPosition>("/fmu/out/vehicle_global_position", qos,
-        [this](const px4_msgs::msg::VehicleGlobalPosition::UniquePtr msg) {
-            lon_cur = msg->lon;
-            lat_cur = msg->lat;
-            alt_cur = msg->alt;
-        });
 
         vehicle_att_sub_ = this->create_subscription<px4_msgs::msg::VehicleAttitude>("/fmu/out/vehicle_attitude", qos,
         [this](const px4_msgs::msg::VehicleAttitude::UniquePtr msg) {
@@ -94,169 +82,25 @@ public:
             rc_ch6 = msg->values[5];
         });
 
-        point1_sub_ = this->create_subscription<geometry_msgs::msg::Point>("/point1", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[0] = msg->x;
-            lon_target[0] = msg->y;
-        });
-
-        point2_sub_ = this->create_subscription<geometry_msgs::msg::Point>("/point2", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[1] = msg->x;
-            lon_target[1] = msg->y;
-        });
-
-        point3_sub_ = this->create_subscription<geometry_msgs::msg::Point>("/point3", qos,
-        [this](const geometry_msgs::msg::Point::UniquePtr msg) {
-            lat_target[2] = msg->x;
-            lon_target[2] = msg->y;
-            is_takeoff = msg->z;
-        });
-
-        failsafeFlag_sub_ = this->create_subscription<px4_msgs::msg::FailsafeFlags>("/fmu/out/failsafe_flags", qos,
-        [this](const px4_msgs::msg::FailsafeFlags::UniquePtr msg) {
-            if(state_drone == 1 && !msg->global_position_invalid)
-            {
-                state_drone = 2;
-                UAV_state_pub(state_drone);       // Send state 2 of UAV to ready for takeoff
-            }
-        });
-
         auto timer_callback = [this]() -> void {
             timer_count++;          // Timer for controlling UAV behavior
-            timer_pub_pos++;        // Timer for publishing UAV position      
-            if(timer_pub_pos >= 500)
+            if(timer_count > 20)
             {
-                timer_pub_pos = 0;
-                UAV_pos_pub(lat_cur, lon_cur);       // Publish UAV current position
+                timer_count = 0;
+                std::cout << "x_cur =   " << pos_cur.x << std::endl;
+                std::cout << "y_cur =   " << pos_cur.y << std::endl;
+                std::cout << "z_cur =   " << pos_cur.z << std::endl;
+                std::cout << std::endl;
             }
-            if(rc_ch6 > 1500 && is_takeoff && state_drone != 1)
+            pub_offb_ctl_mode();
+            if(timer_offb < 100)
             {
-                pub_offb_ctl_mode();
-                switch (STEP)
-                {
-                case READY:
-                    if(nav_state != MANUAL)
-                        this->manual();
-                    else 
-                        STEP = MANUAL;
-                    break;
-                case MANUAL:
-                    if(!arming_state)
-                        this->arm();
-                    else 
-                        STEP = ARMED;
-                    break;
-                case ARMED:
-                    if(nav_state != OFFBOARD)
-                        this->offboard();
-                    else 
-                        STEP = OFFBOARD;
-                    break;
-                case OFFBOARD:
-                    switch(STEP_OFFBOARD)
-                    {
-                    case OFFBOARD:
-                        // Set xyz desired postion for takeoff
-                        STEP_OFFBOARD = TAKEOFF;
-                        pos_d.x = pos_cur.x;
-                        pos_d.y = pos_cur.y;
-                        pos_d.z = pos_cur.z - 7.0f;
-                        yaw_d = yaw_cur;
-                        timer_count = 0;
-                        break;
-                    case TAKEOFF:
-                        // If z position of UAV is less than 0.5 from the desired position or 10s time out
-                        if((pos_cur.z < pos_d.z + 0.5)||(timer_count >= 500))
-                        {
-                            STEP_OFFBOARD = POINT1;
-                            pos_global_2_local(lat_target[0], lon_target[0]);
-                            // xyz_setpoint(-5.0f, 0.0f, 0.0f);
-                            timer_count = 0;
-                        }
-                        break;
-                    case POINT1:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT1) || (timer_count >= 1500))
-                        {
-                            FLAG_POINT1 = true;
-                            state_drone = 10;
-                            UAV_state_pub(state_drone);       // Send state 10 of UAV to indicate that it reached point 1
-                            timer_count = 0;
-                        }
-                        else if(FLAG_POINT1 && (timer_count >= 750))
-                        {
-                            STEP_OFFBOARD = POINT2;
-                            pos_global_2_local(lat_target[1], lon_target[1]);
-                            // xyz_setpoint(0.0f, 3.0f, 0.0f);
-                            timer_count = 0;
-                            UAV_state_pub(11);
-                        }
-                        break;
-                    case POINT2:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT2) || (timer_count >= 1500))
-                        {
-                            FLAG_POINT2 = true;
-                            state_drone = 20;
-                            UAV_state_pub(state_drone);       // Send state 20 of UAV to indicate that it reached point 2
-                            timer_count = 0;
-                        }
-                        else if(FLAG_POINT2 && (timer_count >= 750))
-                        {
-                            STEP_OFFBOARD = POINT3;
-                            pos_global_2_local(lat_target[2], lon_target[2]);
-                            // xyz_setpoint(-5.0f, 2.0f, 0.0f);
-                            timer_count = 0;
-                            UAV_state_pub(11);
-                        }
-                        break;
-                    case POINT3:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_POINT3) || (timer_count >= 1500))
-                        {
-                            FLAG_POINT3 = true;
-                            state_drone = 30;
-                            UAV_state_pub(state_drone);       // Send state 30 of UAV to indicate that it reached point 3
-                            timer_count = 0;
-                        }
-                        else if(FLAG_POINT3 && (timer_count >= 750))
-                        {
-                            STEP_OFFBOARD = RETURN;
-                            xyz_setpoint(-pos_cur.x, -pos_cur.y, 0.0f);
-                            timer_count = 0;
-                            UAV_state_pub(11);
-                        }
-                        break;
-                    case RETURN:
-                        if(((pow(pos_cur.x - pos_d.x, 2) + pow(pos_cur.y - pos_d.y, 2) < 0.25f) && !FLAG_RETURN) || (timer_count >= 2000))
-                        {
-                            FLAG_RETURN = true;
-                            state_drone = 40;
-                            UAV_state_pub(state_drone);       // Send state 40 of UAV to indicate that it reached return point
-                            timer_count = 0;
-                        }
-                        else if(FLAG_RETURN && (timer_count >= 150))
-                        {
-                            STEP = LANDING;
-                            timer_count = 0;
-                        }
-                        break;
-                    }
-                    xyz_controller(pos_d.x, pos_d.y, pos_d.z);
-                    break;
-                case LANDING:
-                    this->landing();
-                    break;
-                }
+                timer_offb++;
+                this->arm();
             }
-            else 
-            {
-                this->position();
-                FLAG_POINT1 = false;
-                FLAG_POINT2 = false;
-                FLAG_POINT3 = false;
-                FLAG_RETURN = false;
-                STEP = READY;
-                STEP_OFFBOARD = OFFBOARD;
-            }
+            else
+                this->offboard();
+            xyz_controller(0.0, 0.0, -5.0);
         };
         timer_ = this->create_wall_timer(20ms, timer_callback);
     }
@@ -267,47 +111,29 @@ private:
     rclcpp::Publisher<OffboardControlMode>::SharedPtr offb_ctl_mode_pub_;
     rclcpp::Publisher<VehicleCommand>::SharedPtr vehicle_cmd_pub_;
     rclcpp::Publisher<VehicleAttitudeSetpoint>::SharedPtr vehicle_att_sp_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::Point>::SharedPtr UAV_pos_pub_;
-    rclcpp::Publisher<std_msgs::msg::UInt32>::SharedPtr UAV_state_pub_;
 
     rclcpp::Subscription<VehicleLocalPosition>::SharedPtr vehicle_local_pos_sub_;
-    rclcpp::Subscription<VehicleGlobalPosition>::SharedPtr vehicle_global_pos_sub_;
     rclcpp::Subscription<VehicleAttitude>::SharedPtr vehicle_att_sub_;
     rclcpp::Subscription<InputRc>::SharedPtr input_rc_sub_;
     rclcpp::Subscription<VehicleStatus>::SharedPtr vehicle_status_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point1_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point2_sub_;
-    rclcpp::Subscription<geometry_msgs::msg::Point>::SharedPtr point3_sub_;
-    rclcpp::Subscription<px4_msgs::msg::FailsafeFlags>::SharedPtr failsafeFlag_sub_;
 
     std::atomic<uint64_t> timestamp_;   //!< common synced timestamped
     std::atomic<uint64_t> t_start;
     std::atomic<uint64_t> t_end;
 
     uint64_t timer_count = 0;
-    uint64_t timer_pub_pos = 0;   //!< counter for the number of setpoints sent
+    uint64_t timer_offb = 0;   //!< counter for the number of setpoints sent
 
     // Parameter of Quadcopter
     float fz = 0.0f;     
     float g = 9.8f;
-    float m = 1.820f;
-    float b = 4.6 * pow(10,-6);
-    float omg_max = 1285.0f;
-    // float m = 1.545f;
-    // float b = 4.6f * pow(10,-6);
-    // float omg_max = 1100.0f;
+    // float m = 1.820f;
+    // float b = 4.6 * pow(10,-6);
+    // float omg_max = 1285.0f;
+    float m = 1.535f;
+    float b = 5.84e-06;
+    float omg_max = 1100.0f;
     const double f_max = 4.0f * b * pow(omg_max,2); 
-
-    float lon_cur = 106.770942f;
-    float lat_cur = 10.850548f;
-    float alt_cur = 0.0f;
-
-    float lon_target[3];
-    float lat_target[3];
-
-    float delta_lon = 0.0f;
-    float delta_lat = 0.0f;
-    float phi = 0.0f;
 
     Vector3 pos_d;
     Vector3 pos_cur;
@@ -327,11 +153,6 @@ private:
     uint8_t STEP_OFFBOARD = OFFBOARD;
 
     bool arming_state = 0;
-    bool FLAG_POINT1 = false;
-    bool FLAG_POINT2 = false;
-    bool FLAG_POINT3 = false;
-    bool FLAG_RETURN = false;
-    bool is_takeoff = false;
 
     void arm();
     void disarm();
@@ -343,15 +164,12 @@ private:
     void pub_offb_ctl_mode();
     void pub_vehicle_cmd(uint16_t command, float param1 = 0.0f, float param2 = 0.0f);
     void pub_vehicle_att_sp(float thrust, std::array<float, 4> quaternion);
-    void UAV_pos_pub(float lat, float lon);
-    void UAV_state_pub(uint32_t state_cur);
 
     std::array<float, 4> rpy_to_quaternion(float roll, float pitch, float yaw);
     float alt_controller(float desired_z);
     void xyz_controller(float desired_x, float desired_y, float desired_z);
     void xyz_setpoint(float x_desired, float y_desired, float z_desired);
     std::array<float ,2> constrain_xy(float vel_x, float vel_y, float vel_max);
-    void pos_global_2_local(float lat_target, float lon_target);
     float saturation(float value, float min, float max);
 };
 
@@ -384,7 +202,7 @@ void OffboardControl::disarm()
 void OffboardControl::offboard()
 {
     pub_vehicle_cmd(VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.0f, 6.0f);
-    RCLCPP_INFO(this->get_logger(), "Offboard command send");
+    // RCLCPP_INFO(this->get_logger(), "Offboard command send");
 }
 
 void OffboardControl::position()
@@ -397,30 +215,6 @@ void OffboardControl::manual()
 {
     pub_vehicle_cmd(VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1.0f, 1.0f);
     RCLCPP_INFO(this->get_logger(), "Manual command send");
-}
-
-void OffboardControl::pos_global_2_local(float lat_target, float lon_target)
-{
-    phi = (lat_target + lat_cur) / 2 * (M_PI /180);
-    delta_lat = (lat_target - lat_cur);   // Don vi do
-    delta_lon = (lon_target - lon_cur);   // Don vi do
-    pos_d.x = pos_cur.x + delta_lat * 111320.0f;   // 1 do = 111320.0 m
-    pos_d.y = pos_cur.y + delta_lon * 111320.0f * cosf(phi); // 1 do kinh do = 111320.0 * cosd(trung binh)
-}
-
-void OffboardControl::UAV_pos_pub(float lat, float lon)
-{
-    geometry_msgs::msg::Point msg{};
-    msg.x = lat;
-    msg.y = lon;
-    UAV_pos_pub_->publish(msg);
-}
-
-void OffboardControl::UAV_state_pub(uint32_t state_cur)
-{
-    std_msgs::msg::UInt32 msg{};
-    msg.data = state_cur;
-    UAV_state_pub_->publish(msg);
 }
 
 void OffboardControl::pub_offb_ctl_mode()
@@ -504,7 +298,7 @@ float OffboardControl::alt_controller(float desired_z)
         az_d = (vz_d - vz_d_last) / delta_tz;
     } 
     err_dot = vz_d - vel_cur.z;
-    integral_z = std::clamp(integral_z + err_z * delta_tz, -0.2f, 0.2f); // Limit the integral term to prevent windup
+    integral_z = std::clamp(integral_z + err_z * delta_tz, -1.0f, 1.0f); // Limit the integral term to prevent windup
     float s_z = err_dot + lamda_z * err_z + c_z * integral_z;
     fz = (-m/(cosf(roll_cur) * cosf(pitch_cur))) * (az_d - g + lamda_z * err_dot + c_z * err_z + k_z * std::clamp(s_z, -1.0f, 1.0f));
 
@@ -512,14 +306,12 @@ float OffboardControl::alt_controller(float desired_z)
     vz_d_last = vz_d;
     z_d_last = desired_z;
     float fz_out = -fz/f_max;
-    if(STEP_OFFBOARD == TAKEOFF)
-        fz_out = saturation(-fz/f_max, -0.7f, 0.7f);
     return fz_out;
 }
 
 void OffboardControl::xyz_controller(float desired_x, float desired_y, float desired_z)
 {
-    float k_x = 2.5f;
+    float k_x = 2.0f;
     float lamda_x = 1.3f;
     float c_x = 0.07f;
     static float tx_last = 0.0f;
@@ -545,7 +337,7 @@ void OffboardControl::xyz_controller(float desired_x, float desired_y, float des
     vx_d_last = vx_d;
     x_d_last = desired_x;
 
-    float k_y = 2.5f;
+    float k_y = 2.0f;
     float lamda_y = 1.3f;
     float c_y = 0.07f;
     static float ty_last = 0.0f;
@@ -553,7 +345,7 @@ void OffboardControl::xyz_controller(float desired_x, float desired_y, float des
 
     static float y_d_last = 0.0f;
     static float vy_d_last = 0.0f;
-    static float integral_y = 0.0f;
+    static float integral_y = 0.5f;
     float vy_d = 0.0f;
     float ay_d = 0.0f;
     float err_y_dot = 0.0f;
