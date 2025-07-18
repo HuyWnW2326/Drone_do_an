@@ -8,20 +8,20 @@ find_package(px4_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
+add_executable(ISMC_thesis_node src/ISMC_thesis.cpp)
+ament_target_dependencies(ISMC_thesis_node rclcpp px4_msgs geometry_msgs std_msgs)
+
+add_executable(ISMC_node src/ISMC.cpp)
+ament_target_dependencies(ISMC_node rclcpp px4_msgs geometry_msgs std_msgs)
+
 add_executable(PID_node src/PID.cpp)
 ament_target_dependencies(PID_node rclcpp px4_msgs geometry_msgs std_msgs)
 
-add_executable(SMC_Circle_node src/SMC_Circle.cpp)
-ament_target_dependencies(SMC_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
-
-add_executable(PID_Circle_node src/PID_Circle.cpp)
-ament_target_dependencies(PID_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
-
-add_executable(ISMC_Circle_node src/ISMC_Circle.cpp)
-ament_target_dependencies(ISMC_Circle_node rclcpp px4_msgs geometry_msgs std_msgs)
-
 add_executable(SITL_node src/SITL.cpp)
 ament_target_dependencies(SITL_node rclcpp px4_msgs geometry_msgs std_msgs)
+
+add_executable(SMC_node src/SMC.cpp)
+ament_target_dependencies(SMC_node rclcpp px4_msgs geometry_msgs std_msgs)
 
 install(DIRECTORY
   launch
@@ -29,11 +29,11 @@ install(DIRECTORY
 )
 
 install(TARGETS
+  ISMC_thesis_node
+  ISMC_node
   PID_node
-  PID_Circle_node
-  SMC_Circle_node
-  ISMC_Circle_node
   SITL_node
+  SMC_node
   DESTINATION lib/${PROJECT_NAME})
 
 ament_package()
